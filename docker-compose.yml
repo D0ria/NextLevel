@@ -1,0 +1,52 @@
+version: '3'
+
+services:
+  nginx:
+    image: nginx:latest
+    deploy:
+      replicas: 3  # Créer 3 réplicas de Nginx
+    #ports:
+      #- "9080:9080"  # Expose le port 80 du conteneur sur le port 9080 de l'hôte
+    volumes:
+      - ./nginx/html:/usr/share/nginx/html:ro  # Répertoire des fichiers statiques
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro  # Fichier de configuration Nginx
+    labels:
+      - "traefik.http.routers.nginx.rule=Host(`nginx.localhost`)"
+      - "traefik.http.services.nginx.loadbalancer.server.port=80"  # Traefik redirige vers le port 80 dans le conteneur
+      - "traefik.http.services.nginx.loadbalancer.healthcheck.path=/health"  # Chemin de la vérification de la santé
+      - "traefik.http.services.nginx.loadbalancer.healthcheck.interval=30s"  # Intervalle de 30 secondes pour la vérification de la santé
+    networks:
+      - shopnow-network
+
+  db:
+    image: postgres:13
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_PASSWORD: example
+    networks:
+      - shopnow-network
+
+  traefik:
+    image: traefik:v2.5
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--entryPoints.web.address=:80"
+      - "--entryPoints.websecure.address=:443"
+      - "--certificatesResolvers.myresolver.acme.httpChallenge.entryPoint=web"
+      - "--certificatesResolvers.myresolver.acme.email=dov.ouahnouna@gmail.com"
+      - "--certificatesResolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"  # Accès à l'interface Traefik
+    networks:
+      - shopnow-network
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "./letsencrypt:/letsencrypt"
+
+networks:
+  shopnow-network:
+    driver: bridge
